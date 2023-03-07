@@ -7,6 +7,7 @@ import 'package:http/http.dart' as http;
 import 'package:share_plus/share_plus.dart';
 
 class QuoteNotifier extends ChangeNotifier {
+  bool _initialized = false;
   final _quotesPerPage = 10;
   List<Quote> _backupQuoteList = [];
   List<Quote> _quoteList = [];
@@ -87,7 +88,7 @@ class QuoteNotifier extends ChangeNotifier {
         _currentQuoteIndex = 0;
         _didLastFetchSucceed = true;
       } catch (e) {
-        //keep looping over current page until new succesful fetch
+        //keep looping over current quotes until new succesful fetch
         _currentQuoteIndex++;
         _didLastFetchSucceed = false;
       }
@@ -118,12 +119,11 @@ class QuoteNotifier extends ChangeNotifier {
   }
 
   Future<void> initializeQuotes() async {
-    if (_backupQuoteList.isEmpty) {
+    if (!_initialized) {
       await _loadBackupQuotes();
       _backupQuoteList.shuffle();
-    }
-    if (_quoteList.isEmpty) {
       await getNextQuote();
+      _initialized = true;
     }
   }
 }

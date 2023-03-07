@@ -2,6 +2,7 @@ import 'package:auto_size_text/auto_size_text.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
+import 'package:quotes/notifiers/animation_notifier.dart';
 import 'package:quotes/notifiers/quote_notifier.dart';
 
 class QuoteWidget extends StatefulWidget {
@@ -12,18 +13,26 @@ class QuoteWidget extends StatefulWidget {
 }
 
 class _QuoteWidgetState extends State<QuoteWidget> {
-  late final QuoteNotifier quoteProvider;
+  late final QuoteNotifier quoteNotifier;
+  late final AnimationNotifier animationNotifier;
+
+  Future<void> initilizePage() async {
+    await quoteNotifier.initializeQuotes();
+    await animationNotifier.showElements();
+  }
 
   @override
   void initState() {
     super.initState();
-    quoteProvider = context.read<QuoteNotifier>();
-    quoteProvider.initializeQuotes();
+    quoteNotifier = context.read<QuoteNotifier>();
+    animationNotifier = context.read<AnimationNotifier>();
+    initilizePage();
   }
 
   @override
   Widget build(BuildContext context) {
     context.watch<QuoteNotifier>();
+    context.watch<AnimationNotifier>();
     return Scaffold(
       body: LayoutBuilder(
         builder: (context, constraints) {
@@ -48,21 +57,28 @@ class _QuoteWidgetState extends State<QuoteWidget> {
                 ),
                 const SizedBox(height: 30),
                 QuoteContainer(
-                  quoteText: quoteProvider.currentQuote.text,
-                  quoteAuthor: quoteProvider.currentQuote.author,
+                  animationNotifier: animationNotifier,
+                  quoteText: quoteNotifier.currentQuote.text,
+                  quoteAuthor: quoteNotifier.currentQuote.author,
                   height: 170,
                 ),
                 const SizedBox(height: 30),
-                ShareAndLikeRow(quoteProvider: quoteProvider),
+                ShareAndLikeRow(
+                  quoteProvider: quoteNotifier,
+                  animationNotifier: animationNotifier,
+                ),
                 const SizedBox(height: 45),
                 PrimaryButton(
-                  'Next Genius Quote',
+                  text: 'Generate Next Quote',
+                  animationNotifier: animationNotifier,
                   size: Size(
-                    constraints.maxHeight * 0.31,
-                    constraints.maxHeight * 0.08,
+                    constraints.maxHeight * 0.29,
+                    constraints.maxHeight * 0.077,
                   ),
-                  onPressed: () {
-                    quoteProvider.getNextQuote();
+                  onPressed: () async {
+                    await animationNotifier.hideElements();
+                    await quoteNotifier.getNextQuote();
+                    await animationNotifier.showElements();
                   },
                 ),
               ],
@@ -93,11 +109,13 @@ class AppTitle extends StatelessWidget {
 ////////////////////////////////////////////////////////////////////////////////
 
 class QuoteContainer extends StatelessWidget {
+  final AnimationNotifier animationNotifier;
   final String quoteText;
   final String quoteAuthor;
   final double? height;
   const QuoteContainer({
     super.key,
+    required this.animationNotifier,
     required this.quoteText,
     required this.quoteAuthor,
     this.height,
@@ -111,20 +129,28 @@ class QuoteContainer extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.center,
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          AutoSizeText(
-            maxLines: 4,
-            quoteText,
-            style: GoogleFonts.playfairDisplay(fontSize: 20.0),
-            textAlign: TextAlign.center,
+          AnimatedOpacity(
+            opacity: animationNotifier.showQuoteText() ? 1 : 0,
+            duration: animationNotifier.fadeDuration,
+            child: AutoSizeText(
+              maxLines: 4,
+              quoteText,
+              style: GoogleFonts.playfairDisplay(fontSize: 20.0),
+              textAlign: TextAlign.center,
+            ),
           ),
           const SizedBox(height: 16.0),
           Padding(
             padding: const EdgeInsets.only(right: 12.0),
-            child: Text(
-              "- $quoteAuthor",
-              style: const TextStyle(
-                fontSize: 15.0,
-                fontStyle: FontStyle.italic,
+            child: AnimatedOpacity(
+              opacity: animationNotifier.showQuoteAuthor() ? 1 : 0,
+              duration: animationNotifier.fadeDuration,
+              child: Text(
+                "- $quoteAuthor",
+                style: const TextStyle(
+                  fontSize: 15.0,
+                  fontStyle: FontStyle.italic,
+                ),
               ),
             ),
           ),
@@ -138,38 +164,50 @@ class QuoteContainer extends StatelessWidget {
 
 class ShareAndLikeRow extends StatelessWidget {
   final QuoteNotifier quoteProvider;
-  const ShareAndLikeRow({super.key, required this.quoteProvider});
+  final AnimationNotifier animationNotifier;
+  const ShareAndLikeRow({
+    super.key,
+    required this.quoteProvider,
+    required this.animationNotifier,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        GestureDetector(
-          onTap: () {
-            quoteProvider.shareQuote(quoteProvider.currentQuote);
-          },
-          child: Image.asset(
-            'assets/images/share.png',
-            height: 32,
-            width: 32,
-          ),
+    return IgnorePointer(
+      ignoring: animationNotifier.shouldIgnoreButtonClicks(),
+      child: AnimatedOpacity(
+        opacity: animationNotifier.showShareAndLikeRow() ? 1 : 0,
+        duration: animationNotifier.fadeDuration,
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            GestureDetector(
+              onTap: () {
+                quoteProvider.shareQuote(quoteProvider.currentQuote);
+              },
+              child: Image.asset(
+                'assets/images/share.png',
+                height: 32,
+                width: 32,
+              ),
+            ),
+            const SizedBox(width: 50),
+            GestureDetector(
+              onTap: () {
+                quoteProvider.toggleLike(quoteProvider.currentQuote);
+              },
+              child: Image.asset(
+                quoteProvider.isQuoteLiked(quoteProvider.currentQuote)
+                    ? 'assets/images/heart_filled.png'
+                    : 'assets/images/heart_empty.png',
+                height: 32,
+                width: 32,
+              ),
+            ),
+          ],
         ),
-        const SizedBox(width: 50),
-        GestureDetector(
-          onTap: () {
-            quoteProvider.toggleLike(quoteProvider.currentQuote);
-          },
-          child: Image.asset(
-            quoteProvider.isQuoteLiked(quoteProvider.currentQuote)
-                ? 'assets/images/heart_filled.png'
-                : 'assets/images/heart_empty.png',
-            height: 32,
-            width: 32,
-          ),
-        ),
-      ],
+      ),
     );
   }
 }
@@ -177,52 +215,61 @@ class ShareAndLikeRow extends StatelessWidget {
 ////////////////////////////////////////////////////////////////////////////////
 
 class PrimaryButton extends StatelessWidget {
+  final AnimationNotifier animationNotifier;
   final Size size;
   final String text;
   final void Function()? onPressed;
 
-  const PrimaryButton(
-    this.text, {
+  const PrimaryButton({
     super.key,
+    required this.text,
     required this.onPressed,
     required this.size,
+    required this.animationNotifier,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        boxShadow: const [
-          BoxShadow(
-            offset: Offset(0, 4),
-            blurRadius: 2.0,
-            spreadRadius: 0,
-            color: Colors.black54,
+    return IgnorePointer(
+      ignoring: animationNotifier.shouldIgnoreButtonClicks(),
+      child: AnimatedOpacity(
+        opacity: animationNotifier.showPrimaryButtonVisibility() ? 1 : 0,
+        duration: animationNotifier.fadeDuration,
+        child: Container(
+          decoration: BoxDecoration(
+            boxShadow: const [
+              BoxShadow(
+                offset: Offset(0, 4),
+                blurRadius: 2.0,
+                spreadRadius: 0,
+                color: Colors.black54,
+              ),
+            ],
+            borderRadius: BorderRadius.circular(100.0),
+            gradient: const LinearGradient(
+              colors: [
+                Color(0xFF585858),
+                Color(0xFF161616),
+              ],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
           ),
-        ],
-        borderRadius: BorderRadius.circular(100.0),
-        gradient: const LinearGradient(
-          colors: [
-            Color(0xFF585858),
-            Color(0xFF161616),
-          ],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-      ),
-      child: ElevatedButton(
-        style: ElevatedButton.styleFrom(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(100),
+          child: ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(100),
+              ),
+              fixedSize: size,
+              backgroundColor: Colors.transparent,
+              shadowColor: Colors.transparent,
+            ),
+            onPressed: onPressed,
+            child: Text(
+              text,
+              style: GoogleFonts.openSans(),
+            ),
           ),
-          fixedSize: size,
-          backgroundColor: Colors.transparent,
-          shadowColor: Colors.transparent,
-        ),
-        onPressed: onPressed,
-        child: Text(
-          text,
-          style: GoogleFonts.openSans(),
         ),
       ),
     );

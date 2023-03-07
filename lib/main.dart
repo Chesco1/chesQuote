@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
+import 'package:quotes/notifiers/animation_notifier.dart';
 import 'package:quotes/notifiers/quote_notifier.dart';
 import 'package:quotes/views/quote_page.dart';
 
@@ -27,6 +28,9 @@ class MyApp extends StatelessWidget {
       ),
       home: MultiProvider(
         providers: [
+          ChangeNotifierProvider<AnimationNotifier>(
+            create: (_) => AnimationNotifier(),
+          ),
           ChangeNotifierProvider<QuoteNotifier>(
             create: (_) => QuoteNotifier(),
           ),
