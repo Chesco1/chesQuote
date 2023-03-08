@@ -1,7 +1,10 @@
+import 'dart:collection';
+
 import 'package:auto_size_text/auto_size_text.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
+import 'package:quotes/models/quote.dart';
 import 'package:quotes/notifiers/animation_notifier.dart';
 import 'package:quotes/notifiers/quote_notifier.dart';
 
@@ -31,8 +34,6 @@ class _QuoteWidgetState extends State<QuoteWidget> {
 
   @override
   Widget build(BuildContext context) {
-    context.watch<QuoteNotifier>();
-    context.watch<AnimationNotifier>();
     return Scaffold(
       body: LayoutBuilder(
         builder: (context, constraints) {
@@ -58,13 +59,11 @@ class _QuoteWidgetState extends State<QuoteWidget> {
                 const SizedBox(height: 30),
                 QuoteContainer(
                   animationNotifier: animationNotifier,
-                  quoteText: quoteNotifier.currentQuote.text,
-                  quoteAuthor: quoteNotifier.currentQuote.author,
                   height: 170,
                 ),
                 const SizedBox(height: 30),
                 ShareAndLikeRow(
-                  quoteProvider: quoteNotifier,
+                  quoteNotifier: quoteNotifier,
                   animationNotifier: animationNotifier,
                 ),
                 const SizedBox(height: 45),
@@ -110,81 +109,101 @@ class AppTitle extends StatelessWidget {
 
 class QuoteContainer extends StatelessWidget {
   final AnimationNotifier animationNotifier;
-  final String quoteText;
-  final String quoteAuthor;
   final double? height;
+
   const QuoteContainer({
     super.key,
     required this.animationNotifier,
-    required this.quoteText,
-    required this.quoteAuthor,
     this.height,
   });
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      height: height,
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-          AnimatedOpacity(
-            opacity: animationNotifier.showQuoteText() ? 1 : 0,
-            duration: animationNotifier.fadeDuration,
-            child: AutoSizeText(
-              maxLines: 4,
-              quoteText,
-              style: GoogleFonts.playfairDisplay(fontSize: 20.0),
-              textAlign: TextAlign.center,
-            ),
-          ),
-          const SizedBox(height: 16.0),
-          Padding(
-            padding: const EdgeInsets.only(right: 12.0),
-            child: AnimatedOpacity(
-              opacity: animationNotifier.showQuoteAuthor() ? 1 : 0,
+    {
+      final currentQuote = context.select<QuoteNotifier, Quote>(
+          (quoteNotifier) => quoteNotifier.currentQuote);
+      return SizedBox(
+        height: height,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            AnimatedOpacity(
+              opacity: context.select<AnimationNotifier, bool>(
+                      (notifier) => notifier.showQuoteText())
+                  ? 1
+                  : 0,
               duration: animationNotifier.fadeDuration,
-              child: Text(
-                "- $quoteAuthor",
-                style: const TextStyle(
-                  fontSize: 15.0,
-                  fontStyle: FontStyle.italic,
+              child: AutoSizeText(
+                currentQuote.text,
+                maxLines: 4,
+                style: GoogleFonts.playfairDisplay(fontSize: 20.0),
+                textAlign: TextAlign.center,
+              ),
+            ),
+            const SizedBox(height: 16.0),
+            Padding(
+              padding: const EdgeInsets.only(right: 12.0),
+              child: AnimatedOpacity(
+                opacity: context.select<AnimationNotifier, bool>(
+                        (notifier) => notifier.showQuoteAuthor())
+                    ? 1
+                    : 0,
+                duration: animationNotifier.fadeDuration,
+                child: Text(
+                  "- ${currentQuote.author}",
+                  style: const TextStyle(
+                    fontSize: 15.0,
+                    fontStyle: FontStyle.italic,
+                  ),
                 ),
               ),
             ),
-          ),
-        ],
-      ),
-    );
+          ],
+        ),
+      );
+    }
   }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class ShareAndLikeRow extends StatelessWidget {
-  final QuoteNotifier quoteProvider;
+  final QuoteNotifier quoteNotifier;
   final AnimationNotifier animationNotifier;
   const ShareAndLikeRow({
     super.key,
-    required this.quoteProvider,
+    required this.quoteNotifier,
     required this.animationNotifier,
   });
 
   @override
   Widget build(BuildContext context) {
     return IgnorePointer(
-      ignoring: animationNotifier.shouldIgnoreButtonClicks(),
+      ignoring: context.select<AnimationNotifier, bool>(
+        (animationNotifier) => animationNotifier.shouldIgnoreButtonClicks(),
+      ),
       child: AnimatedOpacity(
-        opacity: animationNotifier.showShareAndLikeRow() ? 1 : 0,
+        opacity: context.select<AnimationNotifier, bool>(
+          (animationNotifier) => animationNotifier.showShareAndLikeRow(),
+        )
+            ? 1
+            : 0,
         duration: animationNotifier.fadeDuration,
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             GestureDetector(
-              onTap: () {
-                quoteProvider.shareQuote(quoteProvider.currentQuote);
+              onTap: () async {
+                animationNotifier.setButtonClickability(false);
+                try {
+                  await quoteNotifier.shareQuote(quoteNotifier.currentQuote);
+                  //making sure there can't be multiple stacked share windows
+                  await Future.delayed(const Duration(milliseconds: 300));
+                } finally {
+                  animationNotifier.setButtonClickability(true);
+                }
               },
               child: Image.asset(
                 'assets/images/share.png',
@@ -195,10 +214,14 @@ class ShareAndLikeRow extends StatelessWidget {
             const SizedBox(width: 50),
             GestureDetector(
               onTap: () {
-                quoteProvider.toggleLike(quoteProvider.currentQuote);
+                quoteNotifier.toggleLike(quoteNotifier.currentQuote);
               },
               child: Image.asset(
-                quoteProvider.isQuoteLiked(quoteProvider.currentQuote)
+                context.select<QuoteNotifier, bool>(
+                  (notifier) => notifier.isQuoteLiked(
+                    quoteNotifier.currentQuote,
+                  ),
+                )
                     ? 'assets/images/heart_filled.png'
                     : 'assets/images/heart_empty.png',
                 height: 32,
@@ -231,9 +254,15 @@ class PrimaryButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return IgnorePointer(
-      ignoring: animationNotifier.shouldIgnoreButtonClicks(),
+      ignoring: context.select<AnimationNotifier, bool>(
+        (notifier) => notifier.shouldIgnoreButtonClicks(),
+      ),
       child: AnimatedOpacity(
-        opacity: animationNotifier.showPrimaryButtonVisibility() ? 1 : 0,
+        opacity: context.select<AnimationNotifier, bool>(
+          (notifier) => notifier.showShareAndLikeRow(),
+        )
+            ? 1
+            : 0,
         duration: animationNotifier.fadeDuration,
         child: Container(
           decoration: BoxDecoration(

@@ -38,8 +38,8 @@ class QuoteNotifier extends ChangeNotifier {
   /// This function formats the quote and allows it to be shared.
   /// I deliberately left out mentioning the auther of the quote,
   /// because I thought this format was more funny.
-  void shareQuote(Quote quote) {
-    Share.share(
+  Future<void> shareQuote(Quote quote) async {
+    await Share.share(
       quote.text,
       subject: "Have you considered this?",
     );

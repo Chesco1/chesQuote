@@ -12,10 +12,10 @@ class AnimationNotifier extends ChangeNotifier {
   bool showQuoteText() => _showQuoteText;
   bool showQuoteAuthor() => _showQuoteAuthor;
   bool showShareAndLikeRow() => _showShareAndLikeRow;
-  bool showPrimaryButtonVisibility() => _showPrimaryButton;
+  bool showPrimaryButton() => _showPrimaryButton;
   bool shouldIgnoreButtonClicks() => _ignoreButtonClicks;
 
-  void _setButtonClickability(bool clickable) {
+  void setButtonClickability(bool clickable) {
     if (_ignoreButtonClicks == clickable) {
       _ignoreButtonClicks = !clickable;
       notifyListeners();
@@ -63,11 +63,11 @@ class AnimationNotifier extends ChangeNotifier {
     _setShareAndLikeRowVisibility(true);
 
     await _setPrimaryButtonVisibility(true);
-    _setButtonClickability(true);
+    setButtonClickability(true);
   }
 
   Future<void> hideElements() async {
-    _setButtonClickability(false);
+    setButtonClickability(false);
     await Future.delayed(const Duration(milliseconds: 200));
 
     ///Here we only await the last function so that all the items
